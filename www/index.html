@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        .app-scrollbar::-webkit-scrollbar { width: 4px; }
+        .app-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .app-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark .app-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        
+        /* Rich Text Editor Styling */
+        .editor-content {
+            min-height: 80px;
+            max-height: 150px;
+            overflow-y: auto;
+            outline: none;
+            word-break: break-word;
+        }
+        .editor-content:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+        }
+        .dark .editor-content:empty:before {
+            color: #6b7280;
+        }
+        .card-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col select-none transition-colors duration-200" onclick="closeAllDropdowns(event)">
+
+    <!-- App Header -->
+    <header class="bg-indigo-600 dark:bg-indigo-950 text-white px-4 py-3 flex justify-between items-center shadow-md sticky top-0 z-30 transition-colors">
+        <h1 class="text-base font-bold flex items-center gap-2 cursor-pointer" onclick="navigateToRoot()">
+            <i class="fa-solid fa-layer-group"></i> Flashcard
+        </h1>
+        <div class="flex items-center gap-2">
+            <!-- 1. Create Dropdown Button -->
+            <div class="relative inline-block text-left">
+                <button onclick="toggleDropdown('navbar-create-dropdown', event)" class="bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-800 dark:hover:bg-indigo-700 text-white w-8 h-8 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center" title="Create Folder or Card">
+                    <i class="fa-solid fa-plus text-sm"></i>
+                </button>
+                <div id="navbar-create-dropdown" class="hidden absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 z-50 text-slate-700 dark:text-slate-200">
+                    <button onclick="openAddCollectionModal()" class="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 font-medium">
+                        <i class="fa-solid fa-folder-plus text-indigo-500 dark:text-indigo-400"></i> New Folder
+                    </button>
+                    <button onclick="openAddCardModal()" class="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 font-medium">
+                        <i class="fa-solid fa-clone text-emerald-500 dark:text-emerald-400"></i> New Flashcard
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Import CSV/XLS Button -->
+            <button onclick="openImportModal()" class="bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-800 dark:hover:bg-indigo-700 text-white p-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center w-8 h-8" title="Import CSV/Excel">
+                <i class="fa-solid fa-file-import"></i>
+            </button>
+
+            <!-- 3. Export CSV Button -->
+            <button onclick="exportAllCSV()" class="bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-800 dark:hover:bg-indigo-700 text-white p-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center w-8 h-8" title="Export CSV to Downloads">
+                <i class="fa-solid fa-file-export"></i>
+            </button>
+
+            <!-- 4. Dark Mode Switch Button -->
+            <button onclick="toggleDarkMode()" class="bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-800 dark:hover:bg-indigo-700 text-white p-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center w-8 h-8" title="Toggle Dark/Light Mode">
+                <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- App Viewport -->
+    <main class="flex-grow max-w-lg w-full mx-auto p-4 flex flex-col overflow-y-auto app-scrollbar relative">
+
+        <!-- VIEW: Collections & Cards Browser -->
+        <section id="view-collections" class="space-y-4">
+            <!-- Breadcrumbs Navigation & Edit Folder Option -->
+            <div class="flex items-center justify-between">
+                <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 overflow-x-auto pb-1">
+                    <!-- Populated by JS -->
+                </div>
+                <!-- Edit Current Folder Button (Only visible inside a folder) -->
+                <button id="edit-folder-btn" onclick="openEditCurrentFolderModal()" class="hidden bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1 border border-slate-200 dark:border-slate-700 shrink-0 ml-2">
+                    <i class="fa-solid fa-pen text-[10px]"></i> Edit Folder
+                </button>
+            </div>
+
+            <!-- Section 1: Sub-collections / Folders -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-folder text-indigo-500 dark:text-indigo-400"></i> Folders / Collections
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        <span id="folder-count-badge" class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold px-2 py-0.5 rounded-full">0</span>
+                        <!-- Folders Sort Dropdown -->
+                        <div class="relative inline-block text-left">
+                            <button onclick="toggleDropdown('folder-sort-dropdown', event)" class="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-xl text-[10px] font-semibold border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1 transition" title="Sort Folders">
+                                <i class="fa-solid fa-arrow-down-wide-short text-indigo-500"></i> <span id="folder-sort-label">Recent</span>
+                            </button>
+                            <div id="folder-sort-dropdown" class="hidden absolute right-0 mt-1.5 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1 z-40 text-slate-700 dark:text-slate-200 text-xs">
+                                <button onclick="setFolderSort('recent')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">Recently added</button>
+                                <button onclick="setFolderSort('az')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">A-Z</button>
+                                <button onclick="setFolderSort('za')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">Z-A</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="collections-grid" class="grid grid-cols-1 gap-2.5">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Horizontal Separator -->
+            <div class="border-t border-slate-300 dark:border-slate-700 my-4"></div>
+
+            <!-- Section 2: Cards Section -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-clone text-emerald-500 dark:text-emerald-400"></i> Cards in this Location
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        <span id="card-count-badge" class="text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold px-2 py-0.5 rounded-full">0</span>
+                        <!-- Cards Sort Dropdown -->
+                        <div class="relative inline-block text-left">
+                            <button onclick="toggleDropdown('card-sort-dropdown', event)" class="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-xl text-[10px] font-semibold border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1 transition" title="Sort Cards">
+                                <i class="fa-solid fa-arrow-down-wide-short text-emerald-500"></i> <span id="card-sort-label">Recent</span>
+                            </button>
+                            <div id="card-sort-dropdown" class="hidden absolute right-0 mt-1.5 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1 z-40 text-slate-700 dark:text-slate-200 text-xs">
+                                <button onclick="setCardSort('recent')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">Recently added</button>
+                                <button onclick="setCardSort('az')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">A-Z</button>
+                                <button onclick="setCardSort('za')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between font-medium">Z-A</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="cards-list" class="space-y-3 pb-6">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Add/Edit Folder Modal -->
+    <div id="modal-add-collection" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-700">
+            <div class="flex justify-between items-center">
+                <h3 id="modal-col-heading" class="text-base font-bold text-slate-900 dark:text-white">Create Folder / Collection</h3>
+                <button onclick="closeModal('modal-add-collection')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleSaveCollection(event)" class="space-y-3">
+                <input type="hidden" id="edit-col-id" value="">
+                <div>
+                    <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Folder Name</label>
+                    <input type="text" id="col-name" required placeholder="e.g. Verbs, Vocabulary, Science..." class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Description (Optional)</label>
+                    <textarea id="col-desc" rows="2" placeholder="Brief notes..." class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal('modal-add-collection')" class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300">Cancel</button>
+                    <button type="submit" id="modal-col-submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow">Create Folder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Flashcard Modal -->
+    <div id="modal-add-card" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-700">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
+                <h3 id="modal-card-heading" class="text-base font-bold text-slate-900 dark:text-white">Add Flashcard</h3>
+                <button onclick="closeModal('modal-add-card')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleSaveCard(event)" class="space-y-4">
+                <input type="hidden" id="edit-card-id" value="">
+
+                <!-- Front Input + Toolbar -->
+                <div>
+                    <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Front (Question / Term)</label>
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900 focus-within:border-indigo-500 transition">
+                        <!-- Toolbar -->
+                        <div class="flex items-center gap-1 p-1.5 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            <button type="button" onclick="formatDoc('bold', 'card-front-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center font-bold" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                            <button type="button" onclick="formatDoc('italic', 'card-front-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center italic" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                            <button type="button" onclick="formatDoc('underline', 'card-front-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center underline" title="Underline"><i class="fa-solid fa-underline"></i></button>
+                            
+                            <!-- Font Size Selector -->
+                            <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                            <select onchange="formatDoc('fontSize', 'card-front-editor', this.value); this.selectedIndex=0;" class="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] rounded px-1 py-0.5 border-0 focus:outline-none cursor-pointer" title="Font Size">
+                                <option value="" disabled selected>Size</option>
+                                <option value="1">Small</option>
+                                <option value="3">Normal</option>
+                                <option value="5">Large</option>
+                                <option value="7">Huge</option>
+                            </select>
+
+                            <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mr-1"><i class="fa-solid fa-palette"></i></span>
+                            <input type="color" onchange="formatDoc('foreColor', 'card-front-editor', this.value)" class="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer rounded" title="Text Color">
+                        </div>
+                        <!-- Editable Div -->
+                        <div id="card-front-editor" contenteditable="true" data-placeholder="e.g. Gebe (v.)" class="editor-content p-3 text-xs text-slate-800 dark:text-slate-100"></div>
+                    </div>
+                </div>
+
+                <!-- Back Input + Toolbar -->
+                <div>
+                    <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Back (Answer / Definition)</label>
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900 focus-within:border-indigo-500 transition">
+                        <!-- Toolbar -->
+                        <div class="flex items-center gap-1 p-1.5 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            <button type="button" onclick="formatDoc('bold', 'card-back-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center font-bold" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                            <button type="button" onclick="formatDoc('italic', 'card-back-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center italic" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                            <button type="button" onclick="formatDoc('underline', 'card-back-editor')" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-xs w-6 h-6 flex items-center justify-center underline" title="Underline"><i class="fa-solid fa-underline"></i></button>
+                            
+                            <!-- Font Size Selector -->
+                            <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                            <select onchange="formatDoc('fontSize', 'card-back-editor', this.value); this.selectedIndex=0;" class="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] rounded px-1 py-0.5 border-0 focus:outline-none cursor-pointer" title="Font Size">
+                                <option value="" disabled selected>Size</option>
+                                <option value="1">Small</option>
+                                <option value="3">Normal</option>
+                                <option value="5">Large</option>
+                                <option value="7">Huge</option>
+                            </select>
+
+                            <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mr-1"><i class="fa-solid fa-palette"></i></span>
+                            <input type="color" onchange="formatDoc('foreColor', 'card-back-editor', this.value)" class="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer rounded" title="Text Color">
+                        </div>
+                        <!-- Editable Div -->
+                        <div id="card-back-editor" contenteditable="true" data-placeholder="Meaning: Give&#10;Example: I gebe das Auto&#10;Case: akkusativ" class="editor-content p-3 text-xs text-slate-800 dark:text-slate-100"></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal('modal-add-card')" class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300">Cancel</button>
+                    <button type="submit" id="modal-card-submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow">Save Flashcard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import File Instructions Modal -->
+    <div id="modal-import-instructions" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-700 text-slate-800 dark:text-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
+                <h3 class="text-base font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-file-import text-indigo-500"></i> Import Flashcards
+                </h3>
+                <button onclick="closeModal('modal-import-instructions')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="text-xs space-y-2.5 text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p class="font-semibold text-slate-800 dark:text-slate-100">Please prepare your CSV or Excel (.csv, .xls, .xlsx) file with the following column header structure:</p>
+                <div class="bg-slate-100 dark:bg-slate-900 p-2.5 rounded-xl font-mono text-[11px] text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700">
+                    Folder Level, Type, Front / Name, Back / Description
+                </div>
+                <ul class="list-disc pl-4 space-y-1 text-[11px]">
+                    <li><b>Folder Level:</b> Use <code class="bg-slate-200 dark:bg-slate-700 px-1 rounded">Root</code> or folder path (e.g. <code class="bg-slate-200 dark:bg-slate-700 px-1 rounded">Verbs &gt; German</code>).</li>
+                    <li><b>Type:</b> Set to <code class="bg-slate-200 dark:bg-slate-700 px-1 rounded">Card</code> or <code class="bg-slate-200 dark:bg-slate-700 px-1 rounded">Folder</code>.</li>
+                    <li><b>Front / Name:</b> Question, term, or folder name.</li>
+                    <li><b>Back / Description:</b> Answer, definition, or folder description.</li>
+                </ul>
+            </div>
+
+            <input type="file" id="import-file-input" accept=".csv,.xls,.xlsx" class="hidden" onchange="handleFileSelect(event)">
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+                <button type="button" onclick="closeModal('modal-import-instructions')" class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300">Cancel</button>
+                <button type="button" onclick="triggerFileInput()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow flex items-center gap-1.5">
+                    <i class="fa-solid fa-folder-open"></i> Open File
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2.5 rounded-xl shadow-xl z-50 transform translate-y-16 opacity-0 transition-all duration-300 flex items-center gap-2.5 text-xs font-medium border border-slate-800 dark:border-slate-200">
+        <i class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+        <span id="toast-msg">Success</span>
+    </div>
+
+    <script>
+        // Theme initialization
+        function initTheme() {
+            const savedTheme = localStorage.getItem('flashcards_theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                updateThemeIcon(true);
+            } else {
+                document.documentElement.classList.remove('dark');
+                updateThemeIcon(false);
+            }
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('flashcards_theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+            showToast(isDark ? 'Dark mode enabled' : 'Light mode enabled');
+        }
+
+        function updateThemeIcon(isDark) {
+            const icon = document.getElementById('theme-toggle-icon');
+            if (icon) {
+                if (isDark) {
+                    icon.className = 'fa-solid fa-sun';
+                } else {
+                    icon.className = 'fa-solid fa-moon';
+                }
+            }
+        }
+
+        // State storage initialization
+        let appData = JSON.parse(localStorage.getItem('flashcards_nested_data')) || {
+            rootCards: [],
+            collections: []
+        };
+
+        let navigationStack = [];
+        let folderSortMode = 'recent'; // 'recent', 'az', 'za'
+        let cardSortMode = 'recent';   // 'recent', 'az', 'za'
+
+        function saveData() {
+            localStorage.setItem('flashcards_nested_data', JSON.stringify(appData));
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            t.classList.remove('translate-y-16', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-16', 'opacity-0'), 2500);
+        }
+
+        function toggleDropdown(id, e) {
+            if (e) e.stopPropagation();
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isHidden = el.classList.contains('hidden');
+            closeAllDropdowns();
+            if (isHidden) el.classList.remove('hidden');
+        }
+
+        function closeAllDropdowns(e) {
+            document.querySelectorAll('[id$="-dropdown"]').forEach(d => d.classList.add('hidden'));
+        }
+
+        function formatDoc(cmd, targetEditorId, value = null) {
+            const editor = document.getElementById(targetEditorId);
+            editor.focus();
+            document.execCommand(cmd, false, value);
+        }
+
+        function findCollectionById(id, list = appData.collections) {
+            for (let item of list) {
+                if (item.id === id) return item;
+                if (item.collections && item.collections.length > 0) {
+                    let found = findCollectionById(id, item.collections);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function getCurrentCollection() {
+            if (navigationStack.length === 0) return null;
+            let currentList = appData.collections;
+            let target = null;
+            for (let i = 0; i < navigationStack.length; i++) {
+                target = currentList.find(c => c.id === navigationStack[i]);
+                if (!target) return null;
+                currentList = target.collections || [];
+            }
+            return target;
+        }
+
+        function getAllCardsRecursive(target) {
+            let cards = [];
+            if (!target) {
+                if (appData.rootCards) cards.push(...appData.rootCards);
+                if (appData.collections) {
+                    appData.collections.forEach(c => {
+                        cards.push(...getAllCardsRecursive(c));
+                    });
+                }
+            } else {
+                if (target.cards) cards.push(...target.cards);
+                if (target.collections) {
+                    target.collections.forEach(sub => {
+                        cards.push(...getAllCardsRecursive(sub));
+                    });
+                }
+            }
+            return cards;
+        }
+
+        function navigateToRoot() {
+            navigationStack = [];
+            folderSortMode = 'recent';
+            cardSortMode = 'recent';
+            renderMainView();
+        }
+
+        function navigateToFolder(colId) {
+            navigationStack.push(colId);
+            folderSortMode = 'recent';
+            cardSortMode = 'recent';
+            renderMainView();
+        }
+
+        function jumpToStack(stackStr) {
+            if (!stackStr) navigationStack = [];
+            else navigationStack = stackStr.split(',');
+            folderSortMode = 'recent';
+            cardSortMode = 'recent';
+            renderMainView();
+        }
+
+        function setFolderSort(mode) {
+            folderSortMode = mode;
+            const labels = { recent: 'Recent', az: 'A-Z', za: 'Z-A' };
+            document.getElementById('folder-sort-label').textContent = labels[mode] || 'Recent';
+            renderMainView();
+        }
+
+        function setCardSort(mode) {
+            cardSortMode = mode;
+            const labels = { recent: 'Recent', az: 'A-Z', za: 'Z-A' };
+            document.getElementById('card-sort-label').textContent = labels[mode] || 'Recent';
+            renderMainView();
+        }
+
+        function renderMainView() {
+            document.getElementById('view-collections').classList.remove('hidden');
+
+            const current = getCurrentCollection();
+            const breadcrumb = document.getElementById('breadcrumb-container');
+            const editFolderBtn = document.getElementById('edit-folder-btn');
+
+            let bcHtml = `<button onclick="navigateToRoot()" class="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-house"></i> Root</button>`;
+            let tempStack = [];
+            navigationStack.forEach(id => {
+                tempStack.push(id);
+                let tempCol = findCollectionById(id);
+                if (tempCol) {
+                    bcHtml += ` <span class="text-slate-300 dark:text-slate-600">/</span> <button onclick="jumpToStack('${tempStack.join(',')}')" class="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold">${escapeHtml(tempCol.name)}</button>`;
+                }
+            });
+            breadcrumb.innerHTML = bcHtml;
+
+            let collectionsToDisplay = [];
+            let cardsToDisplay = [];
+
+            if (!current) {
+                collectionsToDisplay = [...(appData.collections || [])];
+                cardsToDisplay = [...(appData.rootCards || [])];
+                editFolderBtn.classList.add('hidden');
+            } else {
+                collectionsToDisplay = [...(current.collections || [])];
+                cardsToDisplay = [...(current.cards || [])];
+                editFolderBtn.classList.remove('hidden');
+            }
+
+            // Sort Folders
+            if (folderSortMode === 'az') {
+                collectionsToDisplay.sort((a, b) => a.name.localeCompare(b.name));
+            } else if (folderSortMode === 'za') {
+                collectionsToDisplay.sort((a, b) => b.name.localeCompare(a.name));
+            } else {
+                // Recent (default by timestamp ID or original order)
+                collectionsToDisplay.sort((a, b) => b.id.localeCompare(a.id));
+            }
+
+            // Sort Cards (by front text or id)
+            if (cardSortMode === 'az') {
+                cardsToDisplay.sort((a, b) => a.front.replace(/<[^>]*>?/gm, '').localeCompare(b.front.replace(/<[^>]*>?/gm, '')));
+            } else if (cardSortMode === 'za') {
+                cardsToDisplay.sort((a, b) => b.front.replace(/<[^>]*>?/gm, '').localeCompare(a.front.replace(/<[^>]*>?/gm, '')));
+                cardsToDisplay.reverse();
+            } else {
+                // Recent
+                cardsToDisplay.sort((a, b) => b.id.localeCompare(a.id));
+            }
+
+            renderCollectionsGrid(collectionsToDisplay);
+            renderCardsList(cardsToDisplay);
+        }
+
+        function renderCollectionsGrid(folders) {
+            const grid = document.getElementById('collections-grid');
+            document.getElementById('folder-count-badge').textContent = folders.length;
+            grid.innerHTML = '';
+
+            if (folders.length === 0) {
+                grid.innerHTML = '<div class="text-center py-4 text-xs text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">No sub-folders here. Click <b>+ Create</b> to create one.</div>';
+                return;
+            }
+
+            folders.forEach(col => {
+                let cardCount = getAllCardsRecursive(col).length;
+                const card = document.createElement('div');
+                card.className = 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer transition flex items-center justify-between group';
+                card.onclick = () => navigateToFolder(col.id);
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-100 dark:border-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition">
+                            <i class="fa-solid fa-folder text-base"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${escapeHtml(col.name)}</h4>
+                            <p class="text-[11px] text-slate-400 dark:text-slate-400 line-clamp-1">${escapeHtml(col.description || 'Folder')}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900 px-2 py-0.5 rounded-full mr-1">${cardCount} cards</span>
+                        <button onclick="openEditFolderModal('${col.id}', event)" class="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1.5 rounded-lg transition" title="Edit Folder">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="deleteFolder('${col.id}', event)" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg transition" title="Delete Folder">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderCardsList(cards) {
+            const container = document.getElementById('cards-list');
+            document.getElementById('card-count-badge').textContent = cards.length;
+            container.innerHTML = '';
+
+            if (cards.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-xs text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">No flashcards in this location. Click <b>+ Create</b> to create one.</div>';
+                return;
+            }
+
+            cards.forEach(c => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-2 relative transition-colors';
+                cardEl.innerHTML = `
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-400 font-semibold px-1">
+                        <span><i class="fa-solid fa-arrows-rotate text-indigo-400"></i> Tap card to flip</span>
+                        <div class="flex items-center gap-1">
+                            <button onclick="openEditCardModal('${c.id}')" class="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 transition" title="Edit Card">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button onclick="deleteCard('${c.id}')" class="text-slate-400 hover:text-red-500 p-1 transition" title="Delete Card">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Flippable 3D Card Container -->
+                    <div class="w-full h-36 perspective-1000 cursor-pointer" onclick="toggleCardFlip(this, event)">
+                        <div class="card-inner relative w-full h-full duration-500 transform-style-3d">
+                            <!-- Front Side -->
+                            <div class="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex flex-col justify-between backface-hidden shadow-sm overflow-hidden">
+                                <div class="flex items-center shrink-0 mb-1">
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-md">Front</span>
+                                </div>
+                                <div class="flex-grow overflow-y-auto app-scrollbar my-0.5 pr-1 text-area-content">
+                                    <div class="text-xs font-semibold text-slate-800 dark:text-slate-100 card-content text-left w-full">${c.front}</div>
+                                </div>
+                            </div>
+                            <!-- Back Side -->
+                            <div class="absolute inset-0 w-full h-full bg-indigo-50/80 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-3 flex flex-col justify-between backface-hidden rotate-y-180 shadow-sm overflow-hidden">
+                                <div class="flex items-center shrink-0 mb-1">
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900 px-2 py-0.5 rounded-md">Back</span>
+                                </div>
+                                <div class="flex-grow overflow-y-auto app-scrollbar my-0.5 pr-1 text-area-content">
+                                    <div class="text-xs font-semibold text-indigo-950 dark:text-indigo-100 card-content text-left w-full">${c.back}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(cardEl);
+            });
+        }
+
+        function toggleCardFlip(cardContainer, event) {
+            // If user is selecting text, do not flip
+            if (window.getSelection().toString().length > 0) return;
+
+            const inner = cardContainer.querySelector('.card-inner');
+            inner.classList.toggle('rotate-y-180');
+        }
+
+        // Folder Modal Handling
+        function openAddCollectionModal() {
+            closeAllDropdowns();
+            document.getElementById('modal-col-heading').textContent = 'Create Folder / Collection';
+            document.getElementById('modal-col-submit').textContent = 'Create Folder';
+            document.getElementById('edit-col-id').value = '';
+            document.getElementById('col-name').value = '';
+            document.getElementById('col-desc').value = '';
+            document.getElementById('modal-add-collection').classList.remove('hidden');
+        }
+
+        function openEditFolderModal(colId, e) {
+            if (e) e.stopPropagation();
+            closeAllDropdowns();
+            const col = findCollectionById(colId);
+            if (!col) return;
+
+            document.getElementById('modal-col-heading').textContent = 'Edit Folder';
+            document.getElementById('modal-col-submit').textContent = 'Save Changes';
+            document.getElementById('edit-col-id').value = col.id;
+            document.getElementById('col-name').value = col.name;
+            document.getElementById('col-desc').value = col.description || '';
+            document.getElementById('modal-add-collection').classList.remove('hidden');
+        }
+
+        function openEditCurrentFolderModal() {
+            const current = getCurrentCollection();
+            if (current) openEditFolderModal(current.id);
+        }
+
+        function handleSaveCollection(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-col-id').value;
+            const name = document.getElementById('col-name').value.trim();
+            const description = document.getElementById('col-desc').value.trim();
+            if (!name) return;
+
+            if (editId) {
+                // Editing existing folder
+                let target = findCollectionById(editId);
+                if (target) {
+                    target.name = name;
+                    target.description = description;
+                    showToast('Folder updated!');
+                }
+            } else {
+                // Creating new folder
+                const newCol = {
+                    id: 'col_' + Date.now(),
+                    name,
+                    description,
+                    collections: [],
+                    cards: []
+                };
+
+                let current = getCurrentCollection();
+                if (!current) {
+                    appData.collections.push(newCol);
+                } else {
+                    if (!current.collections) current.collections = [];
+                    current.collections.push(newCol);
+                }
+                showToast('Folder created!');
+            }
+
+            saveData();
+            closeModal('modal-add-collection');
+            renderMainView();
+        }
+
+        function deleteFolder(colId, e) {
+            if (e) e.stopPropagation();
+            let current = getCurrentCollection();
+            if (!current) {
+                appData.collections = appData.collections.filter(c => c.id !== colId);
+            } else {
+                current.collections = current.collections.filter(c => c.id !== colId);
+            }
+            saveData();
+            showToast('Folder deleted.');
+            renderMainView();
+        }
+
+        // Flashcard Modal Handling
+        function openAddCardModal() {
+            closeAllDropdowns();
+            document.getElementById('modal-card-heading').textContent = 'Add Flashcard';
+            document.getElementById('modal-card-submit').textContent = 'Save Flashcard';
+            document.getElementById('edit-card-id').value = '';
+            document.getElementById('card-front-editor').innerHTML = '';
+            document.getElementById('card-back-editor').innerHTML = '';
+            document.getElementById('modal-add-card').classList.remove('hidden');
+        }
+
+        function openEditCardModal(cardId) {
+            closeAllDropdowns();
+            let current = getCurrentCollection();
+            let cardsList = current ? (current.cards || []) : (appData.rootCards || []);
+            let card = cardsList.find(c => c.id === cardId);
+
+            if (!card) return;
+
+            document.getElementById('modal-card-heading').textContent = 'Edit Flashcard';
+            document.getElementById('modal-card-submit').textContent = 'Update Flashcard';
+            document.getElementById('edit-card-id').value = card.id;
+            document.getElementById('card-front-editor').innerHTML = card.front;
+            document.getElementById('card-back-editor').innerHTML = card.back;
+            document.getElementById('modal-add-card').classList.remove('hidden');
+        }
+
+        function handleSaveCard(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-card-id').value;
+            const frontHtml = document.getElementById('card-front-editor').innerHTML.trim();
+            const backHtml = document.getElementById('card-back-editor').innerHTML.trim();
+
+            if (!frontHtml || !backHtml) return;
+
+            let current = getCurrentCollection();
+
+            if (editId) {
+                // Edit existing card
+                let cardsList = current ? (current.cards || []) : (appData.rootCards || []);
+                let card = cardsList.find(c => c.id === editId);
+                if (card) {
+                    card.front = frontHtml;
+                    card.back = backHtml;
+                    showToast('Flashcard updated!');
+                }
+            } else {
+                // Add new card
+                const newCard = { id: 'card_' + Date.now(), front: frontHtml, back: backHtml };
+                if (!current) {
+                    if (!appData.rootCards) appData.rootCards = [];
+                    appData.rootCards.push(newCard);
+                } else {
+                    if (!current.cards) current.cards = [];
+                    current.cards.push(newCard);
+                }
+                showToast('Flashcard saved!');
+            }
+
+            saveData();
+            closeModal('modal-add-card');
+            renderMainView();
+        }
+
+        function deleteCard(cardId) {
+            let current = getCurrentCollection();
+            if (!current) {
+                appData.rootCards = (appData.rootCards || []).filter(c => c.id !== cardId);
+            } else {
+                current.cards = (current.cards || []).filter(c => c.id !== cardId);
+            }
+            saveData();
+            showToast('Flashcard deleted.');
+            renderMainView();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function openImportModal() {
+            closeAllDropdowns();
+            document.getElementById('modal-import-instructions').classList.remove('hidden');
+        }
+
+        function triggerFileInput() {
+            document.getElementById('import-file-input').click();
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                parseAndImportCSV(text);
+                closeModal('modal-import-instructions');
+                event.target.value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAndImportCSV(text) {
+            const lines = text.split(/\r\n|\n/);
+            if (lines.length < 2) {
+                showToast('Invalid or empty file format');
+                return;
+            }
+
+            let importedCount = 0;
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                // Simple CSV row parser handling quotes
+                const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|)/g;
+                let matches = [];
+                let match;
+                while ((match = regex.exec(line)) !== null) {
+                    if (match.index === regex.lastIndex) regex.lastIndex++;
+                    let val = match[1];
+                    if (val.startsWith('"') && val.endsWith('"')) {
+                        val = val.substring(1, val.length - 1).replace(/""/g, '"');
+                    }
+                    matches.push(val.trim());
+                }
+
+                if (matches.length >= 4) {
+                    const folderPath = matches[0];
+                    const type = matches[1];
+                    const front = matches[2];
+                    const back = matches[3];
+
+                    if (type.toLowerCase() === 'card' && front && back) {
+                        if (!folderPath || folderPath.toLowerCase() === 'root') {
+                            if (!appData.rootCards) appData.rootCards = [];
+                            appData.rootCards.push({ id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), front, back });
+                        } else {
+                            // Find or create folder hierarchy
+                            const pathParts = folderPath.split('>').map(p => p.trim());
+                            let currentList = appData.collections;
+                            let targetCol = null;
+
+                            pathParts.forEach(pName => {
+                                let found = currentList.find(c => c.name.toLowerCase() === pName.toLowerCase());
+                                if (!found) {
+                                    found = { id: 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), name: pName, description: '', collections: [], cards: [] };
+                                    currentList.push(found);
+                                }
+                                targetCol = found;
+                                if (!targetCol.collections) targetCol.collections = [];
+                                currentList = targetCol.collections;
+                            });
+
+                            if (targetCol) {
+                                if (!targetCol.cards) targetCol.cards = [];
+                                targetCol.cards.push({ id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), front, back });
+                            }
+                        }
+                        importedCount++;
+                    }
+                }
+            }
+
+            saveData();
+            renderMainView();
+            showToast(`Imported ${importedCount} cards successfully!`);
+        }
+
+        function exportAllCSV() {
+            let csv = 'Folder Level,Type,Front / Name,Back / Description\n';
+            
+            function cleanForCsv(str) {
+                return (str || '').replace(/<[^>]*>?/gm, '').replace(/"/g, '""');
+            }
+
+            if (appData.rootCards) {
+                appData.rootCards.forEach(c => {
+                    csv += `"Root","Card","${cleanForCsv(c.front)}","${cleanForCsv(c.back)}"\n`;
+                });
+            }
+
+            function exportRecursive(col, path) {
+                let currentPath = path ? path + ' > ' + col.name : col.name;
+                if (col.cards) {
+                    col.cards.forEach(card => {
+                        csv += `"${cleanForCsv(currentPath)}","Card","${cleanForCsv(card.front)}","${cleanForCsv(card.back)}"\n`;
+                    });
+                }
+                if (col.collections) {
+                    col.collections.forEach(sub => exportRecursive(sub, currentPath));
+                }
+            }
+            if (appData.collections) {
+                appData.collections.forEach(col => exportRecursive(col, ''));
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'flashcards_export.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showToast('Exported CSV to Downloads!');
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return (text || '').replace(/[&<>"']/g, m => map[m]);
+        }
+
+        window.onload = function() {
+            initTheme();
+            renderMainView();
+        }
+    </script>
+</body>
+</html>
