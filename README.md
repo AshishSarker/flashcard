@@ -1,5 +1,5 @@
 # 🗂️ Flashcards Studio
-![Flashcard Cover](assets/cover.png)
+![Flashcard Cover](images/cover.png)
 
 A clean, fast, and fully offline open-source Flashcard application built for Android using HTML, Tailwind CSS, JavaScript, and Capacitor.
 
